@@ -175,11 +175,14 @@ class AjaxHandler(BaseHandler):
     def post(self):
         long_url = self.get_argument("long_url", None)
         latest_short_url = db.Query(Url).order('-published').fetch(limit=1)
-        latest_short_url = latest_short_url[0]
+        if len(latest_short_url):
+            latest_short_url = latest_short_url[0]
+            latest_short_url = latest_short_url.short_url
+        else:
+            latest_short_url = None
 
         #import logging
         #logging.error(latest_short_url)
-        latest_short_url = latest_short_url.short_url
         #logging.error(type(latest_short_url))
         import url
 
