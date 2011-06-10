@@ -26,6 +26,8 @@ import wsgiref.handlers
 from google.appengine.api import users
 from google.appengine.ext import db
 
+from django.utils import simplejson as json
+
 
 class Entry(db.Model):
     """A single blog entry."""
@@ -37,6 +39,11 @@ class Entry(db.Model):
     published = db.DateTimeProperty(auto_now_add=True)
     updated = db.DateTimeProperty(auto_now=True)
 
+class Url(db.Model):
+    """A single blog entry."""
+    long_url = db.StringProperty(required=True)
+    short_url = db.StringProperty(required=True)
+    published = db.DateTimeProperty(auto_now_add=True)
 
 def administrator(method):
     """Decorate with this method to restrict to site admins."""
@@ -75,6 +82,8 @@ class BaseHandler(tornado.web.RequestHandler):
 
 class HomeHandler(BaseHandler):
     def get(self):
+        self.render("home_get.html")
+        return
         entries = db.Query(Entry).order('-published').fetch(limit=5)
         if not entries:
             if not self.current_user or self.current_user.administrator:
@@ -104,7 +113,7 @@ class FeedHandler(BaseHandler):
 
 
 class ComposeHandler(BaseHandler):
-    @administrator
+    #@administrator
     def get(self):
         key = self.get_argument("key", None)
         entry = Entry.get(key) if key else None
@@ -145,12 +154,63 @@ class EntryModule(tornado.web.UIModule):
     def render(self, entry):
         return self.render_string("modules/entry.html", entry=entry)
 
+class RouteHandler(BaseHandler):
+
+    def get(self):
+        path = self.request.path[1:]
+
+        latest_short_url = db.Query(Url).filter('short_url', path).order('-published').fetch(limit=1)
+        if len(latest_short_url) == 0:
+            import logging
+            logging.error('No urls')
+            self.write('No urls')
+        else:
+            self.redirect('http://'+latest_short_url[0].long_url)
+
+        #if latest_short_url
+
+
+class AjaxHandler(BaseHandler):
+
+    def post(self):
+        long_url = self.get_argument("long_url", None)
+        latest_short_url = db.Query(Url).order('-published').fetch(limit=1)
+        latest_short_url = latest_short_url[0]
+
+        #import logging
+        #logging.error(latest_short_url)
+        latest_short_url = latest_short_url.short_url
+        #logging.error(type(latest_short_url))
+        import url
+
+        if not latest_short_url or type(latest_short_url) != 'unicode':
+            short_url = 'a'
+            #logging.error(short_url)
+
+        else:
+            short_url = url.increment(latest_short_url)
+            #logging.error(short_url)
+
+        url = Url(
+            long_url = long_url,
+            short_url = short_url,
+        )
+        url.put()
+
+        short_url = 'http://url.gennad.org/' + short_url
+        resdict = {'short_url': short_url}
+        #self.content_type = 'application/json'
+        #self.write(json.dumps({'resdict':resdict}))
+        self.write(json.dumps(resdict))
+        self.set_header("Content-Type", "application/json")
+        #return resdict
+
 
 settings = {
     "blog_title": u"Tornado Blog",
     "template_path": os.path.join(os.path.dirname(__file__), "templates"),
     "ui_modules": {"Entry": EntryModule},
-    "xsrf_cookies": True,
+    "xsrf_cookies": False,
 }
 application = tornado.wsgi.WSGIApplication([
     (r"/", HomeHandler),
@@ -158,6 +218,8 @@ application = tornado.wsgi.WSGIApplication([
     (r"/feed", FeedHandler),
     (r"/entry/([^/]+)", EntryHandler),
     (r"/compose", ComposeHandler),
+    (r"/send_ajax", AjaxHandler),
+    (r"/\w+", RouteHandler),
 ], **settings)
 
 

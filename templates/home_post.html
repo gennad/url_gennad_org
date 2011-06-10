@@ -1,0 +1,37 @@
+<html>
+    <head>
+        <title>URL shortener service</title>
+        <style>
+            #header { height: 200px; border-bottom: 5px;   }
+        </style>
+    </head>
+    <body>
+        <div>
+            <div id="header">
+                Hello all! We are glad to 
+            </div>
+            <div>
+                <form method="POST" onsubmit="return send_ajax();" action="/">
+                    Your url:
+                    <input type="text" value="${short_url}" />
+                </form>
+            </div>
+        </div>
+    </body>
+    <script type="text/javascript">
+        function send_ajax() {
+            var long_url = document.getElementById('long_url').value;
+            $.post("/send_ajax", {'long_url': long_url}, 
+            function(data) {
+                var long_url = document.getElementById('long_url');
+                long_url.value = data.short_url;
+                $('long_url').select();
+                $('long_url').copy();
+            });
+            return false;
+        }
+
+    </script>
+<script type="text/javascript" src="/static/js/jquery16.js"></script>
+<script type="text/javascript" src="/static/js/jquery.copy.min.js"></script>
+</html>
